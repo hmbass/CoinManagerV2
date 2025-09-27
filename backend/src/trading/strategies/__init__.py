@@ -1,0 +1,2 @@
+# CoinTrader Trading Strategies Package
+

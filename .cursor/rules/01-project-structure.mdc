@@ -1,0 +1,154 @@
+---
+alwaysApply: true
+description: 단타 코인 트레이딩 시스템 프로젝트 구조 및 아키텍처 가이드
+---
+
+# 단타 코인 트레이딩 시스템 프로젝트 구조
+
+## 📁 프로젝트 디렉토리 구조
+
+```
+CoinManagerV2/
+├── frontend/                     # Next.js 웹 대시보드
+│   ├── app/                     # App Router 기반
+│   │   ├── (dashboard)/         # 대시보드 페이지 그룹
+│   │   ├── config/              # 설정 페이지
+│   │   ├── trades/              # 거래 내역 페이지
+│   │   ├── analytics/           # 성과 분석 페이지
+│   │   ├── api/                 # API 라우트
+│   │   └── layout.tsx           # 루트 레이아웃
+│   ├── components/              # 재사용 가능한 UI 컴포넌트
+│   │   ├── ui/                  # shadcn/ui 컴포넌트
+│   │   ├── charts/              # 차트 컴포넌트
+│   │   ├── forms/               # 폼 컴포넌트
+│   │   └── layout/              # 레이아웃 컴포넌트
+│   ├── lib/                     # 유틸리티 및 설정
+│   │   ├── api.ts               # API 클라이언트
+│   │   ├── utils.ts             # 공통 유틸리티
+│   │   ├── validation.ts        # Zod 스키마
+│   │   └── format.ts            # 포맷팅 유틸리티
+│   ├── types/                   # TypeScript 타입 정의
+│   ├── hooks/                   # 커스텀 React 훅
+│   └── package.json
+├── backend/                      # Python 자동매매 시스템
+│   ├── src/
+│   │   ├── trading/             # 매매 로직
+│   │   │   ├── strategies/      # 거래 전략들
+│   │   │   ├── indicators/      # 기술 지표
+│   │   │   ├── risk_manager.py  # 리스크 관리
+│   │   │   └── trader.py        # 메인 트레이더
+│   │   ├── api/                 # API 관련
+│   │   │   ├── upbit_client.py  # Upbit API 클라이언트
+│   │   │   ├── web_server.py    # FastAPI 웹 서버
+│   │   │   └── websocket.py     # 실시간 데이터
+│   │   ├── telegram/            # 텔레그램 봇
+│   │   │   ├── bot.py           # 봇 메인 로직
+│   │   │   └── notifications.py # 알림 기능
+│   │   ├── database/            # 데이터베이스
+│   │   │   ├── models.py        # SQLAlchemy 모델
+│   │   │   ├── database.py      # DB 연결
+│   │   │   └── repository.py    # 데이터 액세스
+│   │   ├── utils/               # 공통 유틸리티
+│   │   │   ├── config.py        # 설정 관리
+│   │   │   ├── logger.py        # 로깅
+│   │   │   └── validators.py    # 데이터 검증
+│   │   └── main.py              # 메인 실행 파일
+│   ├── tests/                   # 테스트 코드
+│   ├── requirements.txt         # Python 의존성
+│   ├── .env.example            # 환경 변수 예시
+│   └── Dockerfile              # Docker 설정
+├── database/                     # 데이터베이스 관련
+│   ├── migrations/              # Alembic 마이그레이션
+│   ├── schema.sql              # 초기 스키마
+│   └── seed_data.sql           # 샘플 데이터
+├── scripts/                      # 관리 스크립트
+│   ├── server-manager.sh        # 서버 관리 스크립트
+│   ├── setup.sh                # 초기 설정 스크립트
+│   └── deploy.sh               # 배포 스크립트
+├── docs/                        # 문서화
+│   ├── api/                    # API 문서
+│   ├── trading/                # 거래 전략 문서
+│   └── setup/                  # 설치 가이드
+├── .cursor/                     # Cursor Rules
+│   └── rules/                  # 규칙 파일들
+├── .env.example                # 환경 변수 템플릿
+├── docker-compose.yml          # Docker Compose 설정
+└── README.md                   # 프로젝트 문서
+```
+
+## 🏗️ 시스템 아키텍처
+
+### 1. Frontend (Next.js)
+- **목적**: 거래 모니터링, 설정 관리, 성과 분석 대시보드
+- **기술 스택**: Next.js 14, TypeScript, TailwindCSS, shadcn/ui
+- **주요 기능**:
+  - 실시간 거래 현황 모니터링
+  - 거래 설정 및 전략 관리
+  - 성과 분석 및 차트
+  - 거래 내역 조회
+
+### 2. Backend (Python)
+- **목적**: 자동매매 엔진, API 서버, 데이터 처리
+- **기술 스택**: Python 3.11+, FastAPI, SQLAlchemy, pyupbit
+- **주요 기능**:
+  - Upbit API 연동
+  - 자동매매 로직 실행
+  - 텔레그램 알림
+  - RESTful API 제공
+
+### 3. Database
+- **목적**: 거래 데이터, 설정, 성과 기록 저장
+- **기술 스택**: PostgreSQL (프로덕션), SQLite (개발)
+- **주요 테이블**:
+  - trades: 거래 기록
+  - strategies: 거래 전략 설정
+  - performance: 성과 지표
+  - notifications: 알림 기록
+
+## 🔄 데이터 플로우
+
+1. **시장 데이터 수집**: Upbit WebSocket → Backend
+2. **전략 실행**: 기술 지표 분석 → 매매 신호 생성
+3. **주문 실행**: 매매 신호 → Upbit API → 주문 체결
+4. **알림 발송**: 거래 완료 → 텔레그램 봇 → 사용자 알림
+5. **데이터 저장**: 거래 결과 → Database → 성과 분석
+6. **대시보드 업데이트**: Database → Frontend API → 실시간 UI 업데이트
+
+## 📝 파일 명명 규칙
+
+### Frontend (TypeScript/React)
+- **컴포넌트**: PascalCase (예: `TradingDashboard.tsx`)
+- **훅**: camelCase with use prefix (예: `useTradingData.ts`)
+- **유틸리티**: camelCase (예: `formatCurrency.ts`)
+- **타입**: PascalCase with Type suffix (예: `TradeType.ts`)
+
+### Backend (Python)
+- **모듈**: snake_case (예: `upbit_client.py`)
+- **클래스**: PascalCase (예: `class UpbitClient`)
+- **함수**: snake_case (예: `def get_current_price()`)
+- **상수**: UPPER_SNAKE_CASE (예: `MAX_POSITION_SIZE`)
+
+### 환경 변수
+- **형식**: UPPER_SNAKE_CASE (예: `UPBIT_ACCESS_KEY`)
+- **그룹별 접두사**:
+  - `UPBIT_*`: Upbit API 관련
+  - `TELEGRAM_*`: 텔레그램 봇 관련
+  - `DB_*`: 데이터베이스 관련
+  - `TRADING_*`: 거래 설정 관련
+
+## 🚀 개발 워크플로우
+
+1. **개발 환경 설정**: `scripts/setup.sh` 실행
+2. **서버 시작**: `scripts/server-manager.sh start`
+3. **개발 진행**: 각 모듈별 독립 개발
+4. **테스트**: 유닛 테스트 및 통합 테스트
+5. **배포**: `scripts/deploy.sh` 실행
+
+## ⚠️ 보안 고려사항
+
+- **API 키 관리**: `.env` 파일로 분리, Git 추적 제외
+- **데이터 암호화**: 민감한 정보는 암호화 저장
+- **접근 제어**: API 엔드포인트별 인증 구현
+- **로깅**: 민감한 정보 로그 제외
+
+이 구조를 기반으로 모든 개발 작업을 진행하며, 각 모듈 간의 의존성을 최소화하고 확장성을 고려합니다.

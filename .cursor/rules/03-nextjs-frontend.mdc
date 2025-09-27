@@ -1,0 +1,482 @@
+---
+alwaysApply: true
+globs: frontend/**/*
+description: Next.js Frontend 개발 가이드 - 단타 코인 트레이딩 대시보드
+---
+
+# Next.js Frontend 개발 가이드
+
+## 🎯 프로젝트 개요
+
+단타 코인 트레이딩 시스템의 웹 대시보드를 Next.js 14 App Router로 구현합니다.
+
+### 기술 스택
+- **Next.js 14**: App Router, Server Components
+- **TypeScript**: 타입 안전성
+- **TailwindCSS**: 스타일링
+- **shadcn/ui**: UI 컴포넌트 라이브러리
+- **Recharts**: 차트 라이브러리
+- **Zod**: 스키마 검증
+- **React Hook Form**: 폼 관리
+
+## 📁 Frontend 디렉토리 구조
+
+```
+frontend/
+├── app/                          # App Router
+│   ├── (dashboard)/             # 대시보드 그룹
+│   │   ├── page.tsx            # 메인 대시보드
+│   │   └── layout.tsx          # 대시보드 레이아웃
+│   ├── trades/                 # 거래 내역
+│   │   ├── page.tsx           # 거래 목록
+│   │   └── [id]/page.tsx      # 거래 상세
+│   ├── config/                # 설정
+│   │   ├── page.tsx          # 설정 페이지
+│   │   ├── trading/page.tsx  # 거래 설정
+│   │   └── alerts/page.tsx   # 알림 설정
+│   ├── analytics/             # 분석
+│   │   ├── page.tsx          # 성과 분석
+│   │   └── reports/page.tsx  # 상세 보고서
+│   ├── api/                   # API Routes
+│   │   ├── trades/route.ts   # 거래 API
+│   │   ├── config/route.ts   # 설정 API
+│   │   └── status/route.ts   # 시스템 상태 API
+│   ├── globals.css           # 전역 스타일
+│   ├── layout.tsx            # 루트 레이아웃
+│   └── loading.tsx           # 로딩 컴포넌트
+├── components/                # 컴포넌트
+│   ├── ui/                   # shadcn/ui 컴포넌트
+│   ├── layout/               # 레이아웃 컴포넌트
+│   │   ├── Header.tsx
+│   │   ├── Sidebar.tsx
+│   │   └── Footer.tsx
+│   ├── dashboard/            # 대시보드 컴포넌트
+│   │   ├── TradingOverview.tsx
+│   │   ├── PerformanceCards.tsx
+│   │   ├── EquityChart.tsx
+│   │   └── RecentTrades.tsx
+│   ├── trades/               # 거래 관련 컴포넌트
+│   │   ├── TradesList.tsx
+│   │   ├── TradeCard.tsx
+│   │   └── TradeFilters.tsx
+│   ├── forms/                # 폼 컴포넌트
+│   │   ├── TradingConfigForm.tsx
+│   │   ├── AlertSettingsForm.tsx
+│   │   └── ApiKeyForm.tsx
+│   └── charts/               # 차트 컴포넌트
+│       ├── EquityChart.tsx
+│       ├── ProfitLossChart.tsx
+│       └── VolumeChart.tsx
+├── lib/                      # 유틸리티
+│   ├── api.ts               # API 클라이언트
+│   ├── utils.ts             # 공통 유틸리티
+│   ├── validation.ts        # Zod 스키마
+│   ├── format.ts            # 포맷팅 함수
+│   └── constants.ts         # 상수 정의
+├── types/                   # 타입 정의
+│   ├── api.ts              # API 타입
+│   ├── trading.ts          # 거래 관련 타입
+│   └── components.ts       # 컴포넌트 타입
+├── hooks/                  # 커스텀 훅
+│   ├── useApi.ts          # API 호출 훅
+│   ├── useTrades.ts       # 거래 데이터 훅
+│   └── useWebSocket.ts    # WebSocket 연결 훅
+├── middleware.ts          # Next.js 미들웨어
+├── next.config.js         # Next.js 설정
+├── tailwind.config.js     # TailwindCSS 설정
+├── tsconfig.json          # TypeScript 설정
+└── package.json           # 의존성 관리
+```
+
+## 🎨 UI/UX 가이드라인
+
+### 1. 디자인 시스템
+```tsx
+// lib/constants.ts
+export const COLORS = {
+  primary: 'hsl(221.2 83.2% 53.3%)',
+  secondary: 'hsl(210 40% 96%)',
+  success: 'hsl(142.1 76.2% 36.3%)',
+  warning: 'hsl(47.9 95.8% 53.1%)',
+  error: 'hsl(0 84.2% 60.2%)',
+  muted: 'hsl(210 40% 96%)'
+} as const;
+
+export const TRADE_COLORS = {
+  profit: 'text-green-600 bg-green-50',
+  loss: 'text-red-600 bg-red-50',
+  neutral: 'text-gray-600 bg-gray-50'
+} as const;
+```
+
+### 2. 레이아웃 컴포넌트
+```tsx
+// components/layout/Header.tsx
+import { Bell, Settings, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+export function Header() {
+  return (
+    <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 flex">
+          <h1 className="font-bold text-xl">CoinTrader</h1>
+        </div>
+        
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <nav className="flex items-center space-x-2">
+            <Button variant="ghost" size="sm">
+              <Bell className="h-4 w-4" />
+              <Badge variant="destructive" className="ml-1">3</Badge>
+            </Button>
+            <Button variant="ghost" size="sm">
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm">
+              <User className="h-4 w-4" />
+            </Button>
+          </nav>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+### 3. 대시보드 컴포넌트
+```tsx
+// components/dashboard/PerformanceCards.tsx
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
+import { formatCurrency, formatPercent } from '@/lib/format';
+
+interface PerformanceData {
+  totalProfit: number;
+  totalTrades: number;
+  winRate: number;
+  dailyProfit: number;
+}
+
+export function PerformanceCards({ data }: { data: PerformanceData }) {
+  const cards = [
+    {
+      title: '총 수익',
+      value: formatCurrency(data.totalProfit),
+      icon: DollarSign,
+      trend: data.totalProfit > 0 ? 'up' : 'down',
+      className: data.totalProfit > 0 ? 'text-green-600' : 'text-red-600'
+    },
+    {
+      title: '총 거래수',
+      value: data.totalTrades.toString(),
+      icon: Activity,
+      trend: 'neutral'
+    },
+    {
+      title: '승률',
+      value: formatPercent(data.winRate),
+      icon: TrendingUp,
+      trend: data.winRate > 50 ? 'up' : 'down',
+      className: data.winRate > 50 ? 'text-green-600' : 'text-red-600'
+    },
+    {
+      title: '일일 수익',
+      value: formatCurrency(data.dailyProfit),
+      icon: data.dailyProfit > 0 ? TrendingUp : TrendingDown,
+      trend: data.dailyProfit > 0 ? 'up' : 'down',
+      className: data.dailyProfit > 0 ? 'text-green-600' : 'text-red-600'
+    }
+  ];
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {cards.map((card, index) => (
+        <Card key={index}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              {card.title}
+            </CardTitle>
+            <card.icon className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${card.className || ''}`}>
+              {card.value}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+```
+
+## 📊 차트 구현
+
+### 1. 에쿼티 커브 차트
+```tsx
+// components/charts/EquityChart.tsx
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+import { formatCurrency } from '@/lib/format';
+
+interface EquityData {
+  date: string;
+  equity: number;
+  profit: number;
+}
+
+export function EquityChart({ data }: { data: EquityData[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis 
+          dataKey="date" 
+          tick={{ fontSize: 12 }}
+          tickFormatter={(value) => new Date(value).toLocaleDateString()}
+        />
+        <YAxis 
+          tick={{ fontSize: 12 }}
+          tickFormatter={(value) => formatCurrency(value, true)}
+        />
+        <Tooltip
+          labelFormatter={(value) => new Date(value).toLocaleDateString()}
+          formatter={(value: number) => [formatCurrency(value), '자산']}
+        />
+        <Line
+          type="monotone"
+          dataKey="equity"
+          stroke="hsl(221.2 83.2% 53.3%)"
+          strokeWidth={2}
+          dot={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+## 🔌 API 연동
+
+### 1. API 클라이언트
+```tsx
+// lib/api.ts
+class ApiClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') {
+    this.baseUrl = baseUrl;
+  }
+
+  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // 거래 관련 API
+  async getTrades(params?: TradeFilters): Promise<Trade[]> {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request<Trade[]>(`/api/trades${query}`);
+  }
+
+  async getTradeById(id: string): Promise<Trade> {
+    return this.request<Trade>(`/api/trades/${id}`);
+  }
+
+  async getPerformance(): Promise<PerformanceData> {
+    return this.request<PerformanceData>('/api/performance');
+  }
+
+  // 설정 관련 API
+  async getConfig(): Promise<TradingConfig> {
+    return this.request<TradingConfig>('/api/config');
+  }
+
+  async updateConfig(config: Partial<TradingConfig>): Promise<TradingConfig> {
+    return this.request<TradingConfig>('/api/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  // 시스템 상태 API
+  async getSystemStatus(): Promise<SystemStatus> {
+    return this.request<SystemStatus>('/api/status');
+  }
+}
+
+export const apiClient = new ApiClient();
+```
+
+### 2. 커스텀 훅
+```tsx
+// hooks/useTrades.ts
+import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api';
+import { Trade, TradeFilters } from '@/types/trading';
+
+export function useTrades(filters?: TradeFilters) {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchTrades() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiClient.getTrades(filters);
+        setTrades(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '데이터 로딩 실패');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchTrades();
+  }, [filters]);
+
+  return { trades, loading, error, refetch: () => fetchTrades() };
+}
+```
+
+## 📱 반응형 디자인
+
+### 1. 브레이크포인트
+```tsx
+// tailwind.config.js
+module.exports = {
+  theme: {
+    screens: {
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    }
+  }
+}
+```
+
+### 2. 반응형 컴포넌트 예시
+```tsx
+// components/dashboard/TradingOverview.tsx
+export function TradingOverview() {
+  return (
+    <div className="space-y-6">
+      {/* 모바일에서는 세로 배치, 데스크톱에서는 가로 배치 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <PerformanceCards />
+      </div>
+      
+      {/* 차트는 모바일에서 높이 축소 */}
+      <div className="h-[300px] md:h-[400px]">
+        <EquityChart />
+      </div>
+      
+      {/* 테이블은 모바일에서 스크롤 */}
+      <div className="overflow-x-auto">
+        <RecentTrades />
+      </div>
+    </div>
+  );
+}
+```
+
+## 🔧 유틸리티 함수
+
+### 1. 포맷팅 함수
+```tsx
+// lib/format.ts
+export function formatCurrency(
+  amount: number, 
+  compact: boolean = false
+): string {
+  if (compact && Math.abs(amount) >= 1000000) {
+    return new Intl.NumberFormat('ko-KR', {
+      style: 'currency',
+      currency: 'KRW',
+      notation: 'compact',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1,
+    }).format(amount);
+  }
+  
+  return new Intl.NumberFormat('ko-KR', {
+    style: 'currency',
+    currency: 'KRW',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export function formatPercent(value: number): string {
+  return new Intl.NumberFormat('ko-KR', {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value / 100);
+}
+
+export function formatDate(date: string | Date): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(date));
+}
+```
+
+## ⚡ 성능 최적화
+
+### 1. 메모이제이션
+```tsx
+import { memo, useMemo } from 'react';
+
+export const ExpensiveComponent = memo(function ExpensiveComponent({ data }) {
+  const processedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      formattedValue: formatCurrency(item.value)
+    }));
+  }, [data]);
+
+  return <div>{/* 컴포넌트 렌더링 */}</div>;
+});
+```
+
+### 2. 동적 임포트
+```tsx
+import dynamic from 'next/dynamic';
+
+const HeavyChart = dynamic(() => import('@/components/charts/HeavyChart'), {
+  loading: () => <div>차트 로딩 중...</div>,
+  ssr: false
+});
+```
+
+이 가이드를 따라 일관성 있고 사용자 친화적인 Frontend를 구현하세요.

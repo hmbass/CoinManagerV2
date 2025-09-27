@@ -1,0 +1,64 @@
+# ==============================================
+# CoinTrader Backend Dependencies
+# ==============================================
+
+# 웹 프레임워크
+fastapi>=0.104.1
+uvicorn>=0.24.0
+
+# Upbit API 연동
+pyupbit>=0.2.31
+pyjwt>=2.8.0
+requests>=2.31.0
+websockets>=11.0.2
+
+# 데이터베이스
+sqlalchemy>=2.0.23
+alembic>=1.12.1
+psycopg2-binary>=2.9.9  # PostgreSQL
+aiosqlite>=0.19.0  # SQLite async
+
+# 텔레그램 봇
+python-telegram-bot>=20.7
+
+# 데이터 분석 및 계산
+pandas>=2.1.3
+numpy>=1.25.2
+ta>=0.10.2  # Technical Analysis
+
+# 비동기 처리
+asyncio>=3.4.3
+aiofiles>=23.2.1
+
+# 환경 및 설정
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# 보안 및 암호화
+cryptography>=41.0.7
+passlib>=1.7.4
+
+# 로깅 및 모니터링
+loguru>=0.7.2
+
+# 테스트
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+httpx>=0.25.2  # For testing FastAPI
+pytest-cov>=4.1.0
+
+# 개발 도구
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.1
+
+# 시간 처리
+python-dateutil>=2.8.2
+
+# HTTP 클라이언트
+httpx>=0.25.2
+
+# 캐싱 (선택적)
+redis>=5.0.1
+

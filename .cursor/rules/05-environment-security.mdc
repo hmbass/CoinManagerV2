@@ -1,0 +1,555 @@
+---
+alwaysApply: true
+description: 환경 설정 및 보안 관리 가이드
+---
+
+# 환경 설정 및 보안 관리 가이드
+
+## 🔐 환경 변수 관리
+
+### 1. 환경 변수 구조
+모든 민감한 정보는 환경 변수로 관리하며, 절대 코드에 하드코딩하지 않습니다.
+
+### 2. `.env` 파일 구조
+```bash
+# ==============================================
+# 🔑 API 인증 정보 (절대 공유 금지)
+# ==============================================
+
+# Upbit API 설정
+UPBIT_ACCESS_KEY=your_upbit_access_key_here
+UPBIT_SECRET_KEY=your_upbit_secret_key_here
+UPBIT_SERVER_URL=https://api.upbit.com
+
+# 텔레그램 봇 설정
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_CHAT_ID=your_telegram_chat_id_here
+
+# ==============================================
+# 💰 거래 설정
+# ==============================================
+
+# 거래 활성화
+TRADING_ENABLED=true
+TRADING_MODE=paper  # "live" 또는 "paper" (모의거래)
+
+# 기본 거래 설정
+DEFAULT_MARKET=KRW-BTC
+MIN_ORDER_AMOUNT=5000
+MAX_POSITION_SIZE=100000
+STOP_LOSS_PERCENT=3.0
+TAKE_PROFIT_PERCENT=2.0
+MAX_DAILY_LOSS=50000
+
+# 포지션 관리
+MAX_CONCURRENT_POSITIONS=3
+POSITION_SIZE_PERCENT=10.0  # 포트폴리오 대비 포지션 크기 (%)
+
+# ==============================================
+# 📊 거래 전략 설정
+# ==============================================
+
+# 스캘핑 전략
+SCALPING_ENABLED=true
+SCALPING_RSI_OVERSOLD=30
+SCALPING_RSI_OVERBOUGHT=70
+SCALPING_MIN_VOLUME=1000000
+SCALPING_MIN_PROFIT=0.5
+SCALPING_MAX_LOSS=0.3
+
+# 모멘텀 전략
+MOMENTUM_ENABLED=false
+MOMENTUM_PERIOD=20
+MOMENTUM_THRESHOLD=2.0
+
+# ==============================================
+# 🗄️ 데이터베이스 설정
+# ==============================================
+
+# 개발환경 (SQLite)
+DATABASE_URL=sqlite:///./trading.db
+
+# 프로덕션환경 (PostgreSQL)
+# DATABASE_URL=postgresql://username:password@localhost:5432/cointrader
+
+# Redis (캐싱 및 세션)
+REDIS_URL=redis://localhost:6379/0
+
+# ==============================================
+# 🌐 API 서버 설정
+# ==============================================
+
+# 서버 설정
+API_HOST=localhost
+API_PORT=8000
+API_DEBUG=false
+API_WORKERS=1
+
+# CORS 설정
+ALLOWED_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+
+# JWT 토큰 (API 인증용)
+JWT_SECRET_KEY=your_super_secret_jwt_key_here
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=30
+
+# ==============================================
+# 📱 알림 설정
+# ==============================================
+
+# 텔레그램 알림 설정
+TELEGRAM_NOTIFICATIONS_ENABLED=true
+NOTIFICATION_TRADE_ALERTS=true
+NOTIFICATION_ERROR_ALERTS=true
+NOTIFICATION_DAILY_SUMMARY=true
+NOTIFICATION_SYSTEM_STATUS=true
+
+# 알림 주기 설정
+DAILY_SUMMARY_TIME=21:00  # 21시에 일일 요약 발송
+SYSTEM_CHECK_INTERVAL=300  # 5분마다 시스템 상태 확인
+
+# ==============================================
+# 📋 로깅 설정
+# ==============================================
+
+# 로그 레벨
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_FORMAT=detailed  # simple, detailed
+
+# 로그 파일 설정
+LOG_FILE=logs/trading.log
+LOG_MAX_SIZE=10MB
+LOG_BACKUP_COUNT=5
+LOG_ROTATION=daily
+
+# 특별 로그 설정
+TRADE_LOG_ENABLED=true
+TRADE_LOG_FILE=logs/trades.log
+ERROR_LOG_ENABLED=true
+ERROR_LOG_FILE=logs/errors.log
+
+# ==============================================
+# 🔒 보안 설정
+# ==============================================
+
+# API 보안
+API_RATE_LIMIT=100  # 분당 요청 제한
+API_RATE_LIMIT_WINDOW=60  # 제한 시간 윈도우 (초)
+
+# 세션 보안
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_HTTPONLY=true
+SESSION_COOKIE_SAMESITE=strict
+
+# 암호화 키 (데이터 암호화용)
+ENCRYPTION_KEY=your_32_byte_encryption_key_here
+
+# ==============================================
+# 🧪 개발 및 테스트 설정
+# ==============================================
+
+# 개발 모드
+DEVELOPMENT_MODE=true
+DEBUG_API_CALLS=false
+MOCK_UPBIT_API=false
+
+# 테스트 설정
+TEST_DATABASE_URL=sqlite:///:memory:
+TEST_TELEGRAM_DISABLED=true
+TEST_TRADING_DISABLED=true
+
+# ==============================================
+# 📈 모니터링 및 성능
+# ==============================================
+
+# 성능 모니터링
+PERFORMANCE_MONITORING=true
+METRICS_ENDPOINT_ENABLED=true
+HEALTH_CHECK_INTERVAL=60
+
+# 데이터 수집
+MARKET_DATA_RETENTION_DAYS=30
+TRADE_DATA_RETENTION_DAYS=365
+LOG_RETENTION_DAYS=90
+
+# ==============================================
+# 🔄 백업 및 복구
+# ==============================================
+
+# 자동 백업 설정
+AUTO_BACKUP_ENABLED=true
+BACKUP_INTERVAL_HOURS=6
+BACKUP_RETENTION_DAYS=30
+BACKUP_PATH=./backups
+
+# 데이터베이스 백업
+DB_BACKUP_ENABLED=true
+DB_BACKUP_TIME=02:00  # 새벽 2시에 백업
+
+# ==============================================
+# 🚀 배포 설정
+# ==============================================
+
+# 환경 구분
+ENVIRONMENT=development  # development, staging, production
+
+# Docker 설정
+DOCKER_COMPOSE_ENV=development
+CONTAINER_NAME=cointrader-backend
+
+# 외부 서비스 설정
+EXTERNAL_API_TIMEOUT=30
+EXTERNAL_API_RETRY_COUNT=3
+EXTERNAL_API_RETRY_DELAY=1
+```
+
+### 3. `.env.example` 템플릿
+```bash
+# ==============================================
+# 환경 변수 설정 예시
+# 이 파일을 .env로 복사하고 실제 값으로 변경하세요
+# ==============================================
+
+# 🔑 필수 API 인증 정보
+UPBIT_ACCESS_KEY=your_upbit_access_key_here
+UPBIT_SECRET_KEY=your_upbit_secret_key_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_CHAT_ID=your_telegram_chat_id_here
+
+# 💰 거래 설정
+TRADING_ENABLED=true
+TRADING_MODE=paper
+DEFAULT_MARKET=KRW-BTC
+MIN_ORDER_AMOUNT=5000
+MAX_POSITION_SIZE=100000
+
+# 🗄️ 데이터베이스
+DATABASE_URL=sqlite:///./trading.db
+
+# 🌐 API 서버
+API_HOST=localhost
+API_PORT=8000
+ALLOWED_ORIGINS=["http://localhost:3000"]
+
+# 📋 로깅
+LOG_LEVEL=INFO
+LOG_FILE=logs/trading.log
+
+# 🔒 보안 (실제 환경에서는 안전한 키 생성 필요)
+JWT_SECRET_KEY=your_super_secret_jwt_key_here
+ENCRYPTION_KEY=your_32_byte_encryption_key_here
+
+# 더 자세한 설정은 README.md 참조
+```
+
+## 🛡️ 보안 가이드라인
+
+### 1. API 키 보안
+```python
+# ❌ 잘못된 예시 - 코드에 직접 하드코딩
+API_KEY = "your_api_key_here"  # 절대 금지!
+
+# ✅ 올바른 예시 - 환경 변수 사용
+import os
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    upbit_access_key: str
+    upbit_secret_key: str
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()
+```
+
+### 2. 데이터 암호화
+```python
+# src/utils/crypto.py
+from cryptography.fernet import Fernet
+import os
+
+class DataEncryption:
+    def __init__(self):
+        key = os.getenv('ENCRYPTION_KEY')
+        if not key:
+            raise ValueError("ENCRYPTION_KEY 환경 변수가 설정되지 않았습니다")
+        
+        self.fernet = Fernet(key.encode())
+    
+    def encrypt(self, data: str) -> str:
+        """데이터 암호화"""
+        return self.fernet.encrypt(data.encode()).decode()
+    
+    def decrypt(self, encrypted_data: str) -> str:
+        """데이터 복호화"""
+        return self.fernet.decrypt(encrypted_data.encode()).decode()
+
+# 사용 예시
+encryption = DataEncryption()
+
+# 민감한 정보 암호화 저장
+encrypted_api_key = encryption.encrypt(settings.upbit_access_key)
+
+# 필요시 복호화
+decrypted_api_key = encryption.decrypt(encrypted_api_key)
+```
+
+### 3. API 접근 제한
+```python
+# src/api/middleware.py
+from fastapi import Request, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import time
+from collections import defaultdict
+
+# Rate Limiting
+class RateLimiter:
+    def __init__(self, requests_per_minute: int = 100):
+        self.requests_per_minute = requests_per_minute
+        self.requests = defaultdict(list)
+    
+    def is_allowed(self, client_ip: str) -> bool:
+        now = time.time()
+        minute_ago = now - 60
+        
+        # 1분 이전 요청 제거
+        self.requests[client_ip] = [
+            req_time for req_time in self.requests[client_ip] 
+            if req_time > minute_ago
+        ]
+        
+        # 현재 요청 추가
+        self.requests[client_ip].append(now)
+        
+        # 제한 확인
+        return len(self.requests[client_ip]) <= self.requests_per_minute
+
+rate_limiter = RateLimiter(requests_per_minute=100)
+
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    
+    if not rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded"
+        )
+    
+    response = await call_next(request)
+    return response
+```
+
+### 4. 입력 데이터 검증
+```python
+# src/schemas/trade.py
+from pydantic import BaseModel, validator, Field
+from typing import Optional
+from decimal import Decimal
+
+class TradeCreateRequest(BaseModel):
+    market: str = Field(..., regex=r'^[A-Z]+-[A-Z]+$')
+    side: str = Field(..., regex=r'^(buy|sell)$')
+    amount: Decimal = Field(..., gt=0, le=1000000)
+    
+    @validator('market')
+    def validate_market(cls, v):
+        allowed_markets = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP']
+        if v not in allowed_markets:
+            raise ValueError(f'지원되지 않는 마켓: {v}')
+        return v
+    
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v < 5000:  # 최소 주문 금액
+            raise ValueError('최소 주문 금액은 5,000원입니다')
+        return v
+
+class TradeResponse(BaseModel):
+    id: int
+    market: str
+    side: str
+    amount: Decimal
+    price: Decimal
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+```
+
+## 🔐 환경별 설정 관리
+
+### 1. 개발 환경 설정
+```python
+# src/config/development.py
+from .base import BaseSettings
+
+class DevelopmentSettings(BaseSettings):
+    debug: bool = True
+    trading_mode: str = "paper"
+    log_level: str = "DEBUG"
+    database_url: str = "sqlite:///./trading_dev.db"
+    
+    # 개발용 설정
+    mock_upbit_api: bool = True
+    telegram_disabled: bool = True
+    rate_limit_disabled: bool = True
+
+class Config:
+    env_file = ".env.development"
+```
+
+### 2. 프로덕션 환경 설정
+```python
+# src/config/production.py
+from .base import BaseSettings
+
+class ProductionSettings(BaseSettings):
+    debug: bool = False
+    trading_mode: str = "live"
+    log_level: str = "INFO"
+    
+    # 프로덕션 보안 설정
+    api_rate_limit: int = 50  # 더 엄격한 제한
+    session_cookie_secure: bool = True
+    session_cookie_httponly: bool = True
+    
+    # 외부 연결 타임아웃
+    upbit_api_timeout: int = 10
+    telegram_api_timeout: int = 5
+
+class Config:
+    env_file = ".env.production"
+```
+
+### 3. 환경별 설정 로더
+```python
+# src/config/__init__.py
+import os
+from .development import DevelopmentSettings
+from .production import ProductionSettings
+from .testing import TestingSettings
+
+def get_settings():
+    environment = os.getenv('ENVIRONMENT', 'development')
+    
+    if environment == 'development':
+        return DevelopmentSettings()
+    elif environment == 'production':
+        return ProductionSettings()
+    elif environment == 'testing':
+        return TestingSettings()
+    else:
+        raise ValueError(f"Unknown environment: {environment}")
+
+settings = get_settings()
+```
+
+## 🔄 환경 변수 검증
+
+### 1. 시작시 환경 변수 검증
+```python
+# src/utils/env_validator.py
+import os
+import sys
+from typing import List, Dict
+
+class EnvironmentValidator:
+    REQUIRED_VARS = [
+        'UPBIT_ACCESS_KEY',
+        'UPBIT_SECRET_KEY',
+        'TELEGRAM_BOT_TOKEN',
+        'TELEGRAM_CHAT_ID',
+        'DATABASE_URL',
+        'JWT_SECRET_KEY'
+    ]
+    
+    OPTIONAL_VARS = {
+        'TRADING_ENABLED': 'true',
+        'TRADING_MODE': 'paper',
+        'LOG_LEVEL': 'INFO',
+        'API_PORT': '8000'
+    }
+    
+    @classmethod
+    def validate(cls) -> bool:
+        """환경 변수 검증"""
+        missing_vars = []
+        
+        # 필수 변수 확인
+        for var in cls.REQUIRED_VARS:
+            if not os.getenv(var):
+                missing_vars.append(var)
+        
+        if missing_vars:
+            print(f"❌ 다음 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
+            print("📝 .env.example 파일을 참조하여 .env 파일을 설정하세요.")
+            return False
+        
+        # 선택적 변수 기본값 설정
+        for var, default_value in cls.OPTIONAL_VARS.items():
+            if not os.getenv(var):
+                os.environ[var] = default_value
+                print(f"ℹ️  {var} 환경 변수가 기본값으로 설정됨: {default_value}")
+        
+        print("✅ 모든 환경 변수가 올바르게 설정되었습니다.")
+        return True
+    
+    @classmethod
+    def validate_trading_config(cls) -> bool:
+        """거래 관련 설정 검증"""
+        trading_mode = os.getenv('TRADING_MODE', 'paper')
+        
+        if trading_mode not in ['paper', 'live']:
+            print(f"❌ TRADING_MODE는 'paper' 또는 'live'여야 합니다: {trading_mode}")
+            return False
+        
+        if trading_mode == 'live':
+            print("⚠️  실거래 모드로 설정되었습니다. 신중히 사용하세요!")
+            confirmation = input("실거래를 진행하시겠습니까? (yes/no): ")
+            if confirmation.lower() != 'yes':
+                print("거래가 취소되었습니다.")
+                return False
+        
+        return True
+
+# 애플리케이션 시작시 검증
+if __name__ == "__main__":
+    if not EnvironmentValidator.validate():
+        sys.exit(1)
+    
+    if not EnvironmentValidator.validate_trading_config():
+        sys.exit(1)
+```
+
+## 📋 환경 설정 체크리스트
+
+### 🔐 보안 체크리스트
+- [ ] API 키가 코드에 하드코딩되지 않았는가?
+- [ ] `.env` 파일이 `.gitignore`에 추가되었는가?
+- [ ] 프로덕션 환경에서 DEBUG 모드가 비활성화되었는가?
+- [ ] JWT 시크릿 키가 충분히 복잡한가?
+- [ ] 데이터베이스 연결이 암호화되었는가?
+- [ ] Rate limiting이 설정되었는가?
+
+### 💰 거래 설정 체크리스트
+- [ ] 거래 모드(paper/live)가 올바르게 설정되었는가?
+- [ ] 최대 포지션 크기가 합리적으로 설정되었는가?
+- [ ] 손절매/익절매 비율이 적절한가?
+- [ ] 일일 최대 손실 한도가 설정되었는가?
+- [ ] 지원되는 마켓만 설정되었는가?
+
+### 📱 알림 설정 체크리스트
+- [ ] 텔레그램 봇 토큰이 유효한가?
+- [ ] 텔레그램 채팅 ID가 올바른가?
+- [ ] 알림 유형별 설정이 적절한가?
+- [ ] 알림 빈도가 과도하지 않은가?
+
+### 🗄️ 데이터베이스 체크리스트
+- [ ] 데이터베이스 URL이 올바른가?
+- [ ] 백업 설정이 활성화되었는가?
+- [ ] 데이터 보존 기간이 설정되었는가?
+- [ ] 마이그레이션이 최신 상태인가?
+
+이 가이드를 따라 안전하고 체계적인 환경 설정을 구축하세요.

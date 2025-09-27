@@ -1,0 +1,806 @@
+---
+alwaysApply: true
+description: 서버 관리 및 배포 가이드 - 통합 서버 관리 시스템
+---
+
+# 서버 관리 및 배포 가이드
+
+## 🎯 서버 관리 시스템 개요
+
+단타 코인 트레이딩 시스템의 모든 서비스(Frontend, Backend, Database)를 통합 관리하는 시스템입니다.
+
+### 관리 대상 서비스
+- **Frontend**: Next.js 웹 대시보드 (포트 3000)
+- **Backend**: Python FastAPI 서버 (포트 8000)
+- **Database**: PostgreSQL/SQLite (포트 5432)
+- **Redis**: 캐시 및 세션 (포트 6379)
+- **WebSocket**: 실시간 데이터 (포트 8001)
+
+## 📁 서버 관리 파일 구조
+
+```
+scripts/
+├── server-manager.sh           # 통합 서버 관리 스크립트
+├── setup.sh                    # 초기 환경 설정
+├── deploy.sh                   # 배포 스크립트
+├── backup.sh                   # 백업 스크립트
+├── monitor.sh                  # 모니터링 스크립트
+└── utils/
+    ├── logger.sh               # 로깅 유틸리티
+    ├── validator.sh            # 환경 검증
+    └── healthcheck.sh          # 헬스체크
+
+logs/
+├── system.log                  # 시스템 통합 로그
+├── frontend.log               # Frontend 로그
+├── backend.log                # Backend 로그
+├── database.log               # Database 로그
+├── redis.log                  # Redis 로그
+├── errors.log                 # 오류 전용 로그
+└── access.log                 # API 접근 로그
+
+pids/
+├── frontend.pid               # Frontend PID
+├── backend.pid                # Backend PID
+├── database.pid               # Database PID
+├── redis.pid                  # Redis PID
+└── websocket.pid              # WebSocket PID
+```
+
+## 🛠️ 통합 서버 관리 스크립트
+
+### 1. 메인 관리 스크립트
+```bash
+#!/bin/bash
+# scripts/server-manager.sh
+
+set -euo pipefail
+
+# ==============================================
+# 설정 및 상수
+# ==============================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+LOGS_DIR="$PROJECT_ROOT/logs"
+PIDS_DIR="$PROJECT_ROOT/pids"
+
+# 포트 설정
+FRONTEND_PORT=3000
+BACKEND_PORT=8000
+WEBSOCKET_PORT=8001
+DATABASE_PORT=5432
+REDIS_PORT=6379
+
+# PID 파일
+FRONTEND_PID_FILE="$PIDS_DIR/frontend.pid"
+BACKEND_PID_FILE="$PIDS_DIR/backend.pid"
+WEBSOCKET_PID_FILE="$PIDS_DIR/websocket.pid"
+DATABASE_PID_FILE="$PIDS_DIR/database.pid"
+REDIS_PID_FILE="$PIDS_DIR/redis.pid"
+
+# 로그 파일
+FRONTEND_LOG="$LOGS_DIR/frontend.log"
+BACKEND_LOG="$LOGS_DIR/backend.log"
+WEBSOCKET_LOG="$LOGS_DIR/websocket.log"
+DATABASE_LOG="$LOGS_DIR/database.log"
+REDIS_LOG="$LOGS_DIR/redis.log"
+SYSTEM_LOG="$LOGS_DIR/system.log"
+ERROR_LOG="$LOGS_DIR/errors.log"
+
+# 색상 코드
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# ==============================================
+# 유틸리티 함수
+# ==============================================
+
+log_message() {
+    local level=$1
+    local message=$2
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # 색상 설정
+    local color=""
+    case $level in
+        "INFO")  color=$GREEN ;;
+        "WARN")  color=$YELLOW ;;
+        "ERROR") color=$RED ;;
+        "DEBUG") color=$CYAN ;;
+        *)       color=$NC ;;
+    esac
+    
+    # 콘솔 출력
+    echo -e "${color}[$timestamp] [$level] $message${NC}"
+    
+    # 파일 로깅
+    echo "[$timestamp] [$level] $message" >> "$SYSTEM_LOG"
+    
+    # 오류인 경우 오류 로그에도 기록
+    if [ "$level" = "ERROR" ]; then
+        echo "[$timestamp] [$level] $message" >> "$ERROR_LOG"
+    fi
+}
+
+create_directories() {
+    mkdir -p "$LOGS_DIR" "$PIDS_DIR"
+    log_message "INFO" "디렉토리 구조 생성 완료"
+}
+
+kill_process_by_port() {
+    local port=$1
+    local service_name=$2
+    
+    local pid=$(lsof -ti:$port 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+        log_message "WARN" "$service_name (포트 $port)에서 실행 중인 프로세스 $pid 종료 중..."
+        kill -TERM "$pid" 2>/dev/null || true
+        sleep 2
+        
+        # 강제 종료가 필요한 경우
+        if kill -0 "$pid" 2>/dev/null; then
+            log_message "WARN" "프로세스 $pid 강제 종료 중..."
+            kill -KILL "$pid" 2>/dev/null || true
+            sleep 1
+        fi
+        
+        log_message "INFO" "$service_name 프로세스 종료 완료"
+    fi
+}
+
+stop_service_by_pid() {
+    local pid_file=$1
+    local service_name=$2
+    
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null || echo "")
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            log_message "INFO" "$service_name (PID: $pid) 중지 중..."
+            
+            # 우아한 종료
+            kill -TERM "$pid" 2>/dev/null || true
+            
+            # 최대 10초 대기
+            local count=0
+            while kill -0 "$pid" 2>/dev/null && [ $count -lt 10 ]; do
+                sleep 1
+                count=$((count + 1))
+            done
+            
+            # 여전히 실행 중이면 강제 종료
+            if kill -0 "$pid" 2>/dev/null; then
+                log_message "WARN" "$service_name 강제 종료 중..."
+                kill -KILL "$pid" 2>/dev/null || true
+                sleep 1
+            fi
+            
+            log_message "INFO" "$service_name 중지 완료"
+        fi
+        
+        rm -f "$pid_file"
+    fi
+}
+
+check_service_status() {
+    local pid_file=$1
+    local service_name=$2
+    local port=$3
+    
+    local status="❌ 중지됨"
+    local color=$RED
+    
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null || echo "")
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            # 포트 체크
+            if [ "$port" != "N/A" ] && netstat -an 2>/dev/null | grep ":$port.*LISTEN" > /dev/null 2>&1; then
+                status="✅ 실행 중 (PID: $pid, Port: $port)"
+                color=$GREEN
+            else
+                status="⚠️  프로세스 실행 중이나 포트 바인딩 실패 (PID: $pid)"
+                color=$YELLOW
+            fi
+        else
+            rm -f "$pid_file"
+        fi
+    fi
+    
+    printf "  %-15s: %b%s%b\n" "$service_name" "$color" "$status" "$NC"
+}
+
+validate_environment() {
+    log_message "INFO" "환경 검증 중..."
+    
+    # 필수 명령어 확인
+    local commands=("node" "npm" "python3" "pip3")
+    for cmd in "${commands[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            log_message "ERROR" "필수 명령어가 설치되지 않음: $cmd"
+            return 1
+        fi
+    done
+    
+    # .env 파일 확인
+    if [ ! -f "$PROJECT_ROOT/.env" ]; then
+        log_message "ERROR" ".env 파일이 없습니다. .env.example을 참조하여 생성하세요."
+        return 1
+    fi
+    
+    # Python 가상환경 확인
+    if [ ! -d "$PROJECT_ROOT/backend/.venv" ]; then
+        log_message "WARN" "Python 가상환경이 없습니다. setup.sh를 먼저 실행하세요."
+    fi
+    
+    log_message "INFO" "환경 검증 완료"
+    return 0
+}
+
+# ==============================================
+# 개별 서비스 관리 함수
+# ==============================================
+
+start_frontend() {
+    log_message "INFO" "Frontend 시작 중..."
+    kill_process_by_port $FRONTEND_PORT "Frontend"
+    
+    cd "$PROJECT_ROOT/frontend"
+    
+    # 의존성 설치 확인
+    if [ ! -d "node_modules" ]; then
+        log_message "INFO" "Frontend 의존성 설치 중..."
+        npm install
+    fi
+    
+    # 빌드 (프로덕션 모드인 경우)
+    if [ "${ENVIRONMENT:-development}" = "production" ]; then
+        log_message "INFO" "Frontend 빌드 중..."
+        npm run build
+        nohup npm start > "$FRONTEND_LOG" 2>&1 &
+    else
+        nohup npm run dev > "$FRONTEND_LOG" 2>&1 &
+    fi
+    
+    echo $! > "$FRONTEND_PID_FILE"
+    sleep 3
+    
+    if validate_service_startup "Frontend" "$FRONTEND_LOG" "$FRONTEND_PORT" "check_frontend_health"; then
+        log_message "INFO" "Frontend 시작 완료 (포트: $FRONTEND_PORT)"
+    else
+        log_message "ERROR" "Frontend 시작 실패"
+        return 1
+    fi
+}
+
+start_backend() {
+    log_message "INFO" "Backend 시작 중..."
+    kill_process_by_port $BACKEND_PORT "Backend"
+    
+    cd "$PROJECT_ROOT/backend"
+    
+    # 가상환경 활성화
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+        log_message "INFO" "Python 가상환경 활성화됨"
+    else
+        log_message "ERROR" "Python 가상환경이 없습니다. setup.sh를 실행하세요."
+        return 1
+    fi
+    
+    # 의존성 설치 확인
+    pip install -r requirements.txt --quiet
+    
+    # 데이터베이스 마이그레이션
+    if [ -f "alembic.ini" ]; then
+        log_message "INFO" "데이터베이스 마이그레이션 실행 중..."
+        alembic upgrade head
+    fi
+    
+    # 서버 시작
+    nohup uvicorn src.main:app \
+        --host 0.0.0.0 \
+        --port $BACKEND_PORT \
+        --reload \
+        > "$BACKEND_LOG" 2>&1 &
+    
+    echo $! > "$BACKEND_PID_FILE"
+    sleep 5
+    
+    if validate_service_startup "Backend" "$BACKEND_LOG" "$BACKEND_PORT" "check_backend_health"; then
+        log_message "INFO" "Backend 시작 완료 (포트: $BACKEND_PORT)"
+    else
+        log_message "ERROR" "Backend 시작 실패"
+        return 1
+    fi
+}
+
+start_websocket() {
+    log_message "INFO" "WebSocket 서버 시작 중..."
+    kill_process_by_port $WEBSOCKET_PORT "WebSocket"
+    
+    cd "$PROJECT_ROOT/backend"
+    
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    fi
+    
+    # WebSocket 서버 시작
+    nohup python -m src.websocket.server \
+        --port $WEBSOCKET_PORT \
+        > "$WEBSOCKET_LOG" 2>&1 &
+    
+    echo $! > "$WEBSOCKET_PID_FILE"
+    sleep 3
+    
+    if validate_service_startup "WebSocket" "$WEBSOCKET_LOG" "$WEBSOCKET_PORT" "check_websocket_health"; then
+        log_message "INFO" "WebSocket 서버 시작 완료 (포트: $WEBSOCKET_PORT)"
+    else
+        log_message "ERROR" "WebSocket 서버 시작 실패"
+        return 1
+    fi
+}
+
+start_redis() {
+    log_message "INFO" "Redis 시작 중..."
+    
+    if command -v redis-server &> /dev/null; then
+        kill_process_by_port $REDIS_PORT "Redis"
+        
+        nohup redis-server \
+            --port $REDIS_PORT \
+            --daemonize no \
+            > "$REDIS_LOG" 2>&1 &
+        
+        echo $! > "$REDIS_PID_FILE"
+        sleep 2
+        
+        if validate_service_startup "Redis" "$REDIS_LOG" "$REDIS_PORT" "check_redis_health"; then
+            log_message "INFO" "Redis 시작 완료 (포트: $REDIS_PORT)"
+        else
+            log_message "ERROR" "Redis 시작 실패"
+            return 1
+        fi
+    else
+        log_message "WARN" "Redis가 설치되지 않았습니다. 건너뜁니다."
+    fi
+}
+
+# ==============================================
+# 헬스체크 함수들
+# ==============================================
+
+check_frontend_health() {
+    curl -s http://localhost:$FRONTEND_PORT > /dev/null 2>&1
+    return $?
+}
+
+check_backend_health() {
+    curl -s http://localhost:$BACKEND_PORT/health > /dev/null 2>&1 || \
+    curl -s http://localhost:$BACKEND_PORT/ > /dev/null 2>&1
+    return $?
+}
+
+check_websocket_health() {
+    netstat -an | grep ":$WEBSOCKET_PORT.*LISTEN" > /dev/null 2>&1
+    return $?
+}
+
+check_redis_health() {
+    redis-cli -p $REDIS_PORT ping > /dev/null 2>&1
+    return $?
+}
+
+validate_service_startup() {
+    local service_name=$1
+    local log_file=$2
+    local port=$3
+    local health_check_func=$4
+    
+    log_message "INFO" "$service_name 시작 후 자동 점검 수행 중..."
+    
+    # 포트 바인딩 확인
+    local count=0
+    while [ $count -lt 10 ]; do
+        if netstat -an | grep ":$port.*LISTEN" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+    
+    if [ $count -eq 10 ]; then
+        log_message "ERROR" "$service_name 포트 $port 바인딩 실패"
+        return 1
+    fi
+    
+    # 헬스체크 실행
+    if ! $health_check_func; then
+        log_message "ERROR" "$service_name 헬스체크 실패"
+        return 1
+    fi
+    
+    # 로그에서 오류 검색
+    if check_for_critical_errors "$log_file" "$service_name"; then
+        log_message "ERROR" "$service_name 로그에서 치명적 오류 발견"
+        return 1
+    fi
+    
+    log_message "INFO" "$service_name 자동 점검 완료 ✅"
+    return 0
+}
+
+check_for_critical_errors() {
+    local logfile=$1
+    local service_name=$2
+    
+    if [ -f "$logfile" ]; then
+        local critical_errors=$(tail -n 30 "$logfile" | grep -i "error\|exception\|failed\|traceback\|fatal\|critical" | wc -l)
+        local connection_errors=$(tail -n 30 "$logfile" | grep -i "connection.*failed\|database.*error\|network.*error" | wc -l)
+        
+        if [ "$critical_errors" -gt 0 ]; then
+            log_message "WARN" "$service_name에서 $critical_errors개의 오류 메시지 발견"
+            echo ""
+            log_message "WARN" "최근 오류 내용:"
+            tail -n 30 "$logfile" | grep -i "error\|exception\|failed\|traceback" | tail -n 3
+            echo ""
+            
+            # 연결 오류는 치명적으로 분류
+            if [ "$connection_errors" -gt 0 ]; then
+                return 1  # 치명적 오류
+            fi
+        fi
+    fi
+    return 0  # 정상 또는 경미한 오류
+}
+
+# ==============================================
+# 메인 명령어 함수들
+# ==============================================
+
+start_all_services() {
+    log_message "INFO" "=== CoinTrader 시스템 시작 ==="
+    
+    create_directories
+    
+    if ! validate_environment; then
+        log_message "ERROR" "환경 검증 실패"
+        return 1
+    fi
+    
+    # 서비스 시작 순서 (의존성 고려)
+    start_redis
+    start_backend
+    start_websocket
+    start_frontend
+    
+    log_message "INFO" "=== 모든 서비스 시작 완료 ==="
+    
+    # 시작 검증 가이드 표시
+    show_startup_verification_guide
+    
+    show_status
+}
+
+stop_all_services() {
+    log_message "INFO" "=== CoinTrader 시스템 중지 ==="
+    
+    # 서비스 중지 순서 (역순)
+    stop_service_by_pid "$FRONTEND_PID_FILE" "Frontend"
+    stop_service_by_pid "$WEBSOCKET_PID_FILE" "WebSocket"
+    stop_service_by_pid "$BACKEND_PID_FILE" "Backend"
+    stop_service_by_pid "$REDIS_PID_FILE" "Redis"
+    
+    log_message "INFO" "=== 모든 서비스 중지 완료 ==="
+}
+
+restart_all_services() {
+    log_message "INFO" "=== CoinTrader 시스템 재시작 ==="
+    stop_all_services
+    sleep 3
+    start_all_services
+}
+
+show_status() {
+    echo ""
+    log_message "INFO" "=== CoinTrader 시스템 상태 ==="
+    echo ""
+    
+    check_service_status "$FRONTEND_PID_FILE" "Frontend" "$FRONTEND_PORT"
+    check_service_status "$BACKEND_PID_FILE" "Backend" "$BACKEND_PORT"
+    check_service_status "$WEBSOCKET_PID_FILE" "WebSocket" "$WEBSOCKET_PORT"
+    check_service_status "$REDIS_PID_FILE" "Redis" "$REDIS_PORT"
+    
+    echo ""
+    log_message "INFO" "서비스 URL:"
+    echo "  Frontend:  http://localhost:$FRONTEND_PORT"
+    echo "  Backend:   http://localhost:$BACKEND_PORT"
+    echo "  API Docs:  http://localhost:$BACKEND_PORT/docs"
+    echo "  WebSocket: ws://localhost:$WEBSOCKET_PORT"
+    echo ""
+}
+
+show_logs() {
+    local service=$1
+    
+    case $service in
+        "frontend"|"fe")
+            log_message "INFO" "Frontend 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$FRONTEND_LOG"
+            ;;
+        "backend"|"be")
+            log_message "INFO" "Backend 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$BACKEND_LOG"
+            ;;
+        "websocket"|"ws")
+            log_message "INFO" "WebSocket 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$WEBSOCKET_LOG"
+            ;;
+        "redis")
+            log_message "INFO" "Redis 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$REDIS_LOG"
+            ;;
+        "error"|"err")
+            log_message "INFO" "오류 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$ERROR_LOG"
+            ;;
+        "system"|"all"|"")
+            log_message "INFO" "시스템 로그 모니터링 시작 (Ctrl+C로 종료)"
+            tail -f "$SYSTEM_LOG"
+            ;;
+        *)
+            log_message "ERROR" "지원되지 않는 로그 타입: $service"
+            echo "사용법: $0 logs [frontend|backend|websocket|redis|error|system]"
+            ;;
+    esac
+}
+
+show_startup_verification_guide() {
+    echo ""
+    log_message "INFO" "🎯 시스템 시작 완료! 다음 단계를 수행하세요:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "   📋 1단계: 각 서비스 로그를 수동으로 점검하세요"
+    echo "   👉 $0 logs frontend"
+    echo "   👉 $0 logs backend"
+    echo "   👉 $0 logs websocket"
+    echo ""
+    echo "   🔍 2단계: 브라우저에서 서비스 접속 테스트"
+    echo "   🌐 Frontend:  http://localhost:$FRONTEND_PORT"
+    echo "   🌐 Backend:   http://localhost:$BACKEND_PORT"
+    echo "   🌐 API Docs:  http://localhost:$BACKEND_PORT/docs"
+    echo ""
+    echo "   ⚠️  3단계: 문제 발견 시 즉시 중단하고 로그를 분석하세요"
+    echo "   🛑 $0 stop"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+show_help() {
+    echo "CoinTrader 서버 관리 스크립트"
+    echo ""
+    echo "사용법: $0 <명령어> [옵션]"
+    echo ""
+    echo "명령어:"
+    echo "  start                 모든 서비스 시작"
+    echo "  stop                  모든 서비스 중지"
+    echo "  restart               모든 서비스 재시작"
+    echo "  status                모든 서비스 상태 확인"
+    echo "  logs <service>        특정 서비스 로그 모니터링"
+    echo ""
+    echo "개별 서비스 관리:"
+    echo "  start-frontend        Frontend만 시작"
+    echo "  start-backend         Backend만 시작"
+    echo "  start-websocket       WebSocket 서버만 시작"
+    echo "  start-redis           Redis만 시작"
+    echo "  stop-frontend         Frontend만 중지"
+    echo "  stop-backend          Backend만 중지"
+    echo "  stop-websocket        WebSocket 서버만 중지"
+    echo "  stop-redis            Redis만 중지"
+    echo ""
+    echo "로그 모니터링:"
+    echo "  logs frontend         Frontend 로그"
+    echo "  logs backend          Backend 로그"
+    echo "  logs websocket        WebSocket 로그"
+    echo "  logs redis            Redis 로그"
+    echo "  logs error            오류 로그"
+    echo "  logs system           시스템 로그"
+    echo ""
+    echo "예시:"
+    echo "  $0 start              # 모든 서비스 시작"
+    echo "  $0 logs backend       # Backend 로그 모니터링"
+    echo "  $0 restart            # 모든 서비스 재시작"
+}
+
+# ==============================================
+# 메인 실행 부분
+# ==============================================
+
+# 스크립트 시작 로깅
+log_message "INFO" "서버 관리 스크립트 시작: $*"
+
+case "${1:-}" in
+    "start")
+        start_all_services
+        ;;
+    "stop")
+        stop_all_services
+        ;;
+    "restart")
+        restart_all_services
+        ;;
+    "status")
+        show_status
+        ;;
+    "logs")
+        show_logs "${2:-}"
+        ;;
+    "start-frontend")
+        start_frontend
+        ;;
+    "start-backend")
+        start_backend
+        ;;
+    "start-websocket")
+        start_websocket
+        ;;
+    "start-redis")
+        start_redis
+        ;;
+    "stop-frontend")
+        stop_service_by_pid "$FRONTEND_PID_FILE" "Frontend"
+        ;;
+    "stop-backend")
+        stop_service_by_pid "$BACKEND_PID_FILE" "Backend"
+        ;;
+    "stop-websocket")
+        stop_service_by_pid "$WEBSOCKET_PID_FILE" "WebSocket"
+        ;;
+    "stop-redis")
+        stop_service_by_pid "$REDIS_PID_FILE" "Redis"
+        ;;
+    "help"|"-h"|"--help")
+        show_help
+        ;;
+    *)
+        echo "잘못된 명령어: ${1:-}"
+        echo "도움말을 보려면 '$0 help'를 실행하세요."
+        exit 1
+        ;;
+esac
+
+log_message "INFO" "서버 관리 스크립트 완료"
+```
+
+### 2. 초기 설정 스크립트
+```bash
+#!/bin/bash
+# scripts/setup.sh
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+setup_python_environment() {
+    log_message "Python 환경 설정 중..."
+    
+    cd "$PROJECT_ROOT/backend"
+    
+    # 가상환경 생성
+    if [ ! -d ".venv" ]; then
+        log_message "Python 가상환경 생성 중..."
+        python3 -m venv .venv
+    fi
+    
+    # 가상환경 활성화
+    source .venv/bin/activate
+    
+    # pip 업그레이드
+    pip install --upgrade pip
+    
+    # 의존성 설치
+    log_message "Python 의존성 설치 중..."
+    pip install -r requirements.txt
+    
+    log_message "Python 환경 설정 완료"
+}
+
+setup_frontend_environment() {
+    log_message "Frontend 환경 설정 중..."
+    
+    cd "$PROJECT_ROOT/frontend"
+    
+    # Node.js 버전 확인
+    node_version=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$node_version" -lt 18 ]; then
+        log_message "경고: Node.js 18 이상이 권장됩니다. 현재 버전: $(node --version)"
+    fi
+    
+    # 의존성 설치
+    log_message "Frontend 의존성 설치 중..."
+    npm install
+    
+    log_message "Frontend 환경 설정 완료"
+}
+
+setup_database() {
+    log_message "데이터베이스 설정 중..."
+    
+    cd "$PROJECT_ROOT/backend"
+    
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    fi
+    
+    # Alembic 초기화 (없는 경우)
+    if [ ! -f "alembic.ini" ]; then
+        log_message "Alembic 초기화 중..."
+        alembic init alembic
+    fi
+    
+    # 마이그레이션 실행
+    log_message "데이터베이스 마이그레이션 실행 중..."
+    alembic upgrade head || log_message "마이그레이션 실행 실패 (무시하고 계속)"
+    
+    log_message "데이터베이스 설정 완료"
+}
+
+setup_environment_file() {
+    log_message "환경 파일 설정 중..."
+    
+    if [ ! -f "$PROJECT_ROOT/.env" ]; then
+        if [ -f "$PROJECT_ROOT/.env.example" ]; then
+            cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
+            log_message ".env 파일이 .env.example에서 복사되었습니다."
+            log_message "⚠️  .env 파일을 편집하여 실제 값으로 설정하세요!"
+        else
+            log_message "오류: .env.example 파일이 없습니다."
+            return 1
+        fi
+    else
+        log_message ".env 파일이 이미 존재합니다."
+    fi
+}
+
+setup_directories() {
+    log_message "프로젝트 디렉토리 구조 생성 중..."
+    
+    mkdir -p "$PROJECT_ROOT/logs"
+    mkdir -p "$PROJECT_ROOT/pids"
+    mkdir -p "$PROJECT_ROOT/backups"
+    mkdir -p "$PROJECT_ROOT/data"
+    
+    log_message "디렉토리 구조 생성 완료"
+}
+
+main() {
+    log_message "CoinTrader 프로젝트 초기 설정 시작"
+    
+    setup_directories
+    setup_environment_file
+    setup_python_environment
+    setup_frontend_environment
+    setup_database
+    
+    log_message "초기 설정 완료!"
+    log_message ""
+    log_message "다음 단계:"
+    log_message "1. .env 파일을 편집하여 API 키 등을 설정하세요"
+    log_message "2. scripts/server-manager.sh start 명령으로 서버를 시작하세요"
+    log_message "3. http://localhost:3000에서 웹 대시보드에 접속하세요"
+}
+
+main "$@"
+```
+
+이 서버 관리 시스템을 통해 안정적이고 체계적인 서비스 운영이 가능합니다.
