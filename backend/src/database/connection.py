@@ -2,7 +2,7 @@
 CoinTrader Backend - 데이터베이스 연결 관리
 SQLAlchemy 엔진 및 세션 관리
 """
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -95,7 +95,7 @@ class DatabaseManager:
             try:
                 # 기본 거래 설정이 없으면 생성
                 result = await session.execute(
-                    "SELECT COUNT(*) FROM trading_configs WHERE name = 'default'"
+                    text("SELECT COUNT(*) FROM trading_configs WHERE name = 'default'")
                 )
                 count = result.scalar()
                 
@@ -175,7 +175,7 @@ async def check_db_health() -> bool:
     """데이터베이스 상태 확인"""
     try:
         async with AsyncSessionLocal() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
             return True
     except Exception as e:
         logger.error(f"데이터베이스 헬스체크 실패: {e}")
