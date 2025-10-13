@@ -10,7 +10,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from .config import settings
 from .database.connection import init_db
-from .api.routes import trades, config, status, analytics
+from .api.routes import trades, config, status, analytics, market
 from .utils.logger import setup_logger
 
 # 전역 인스턴스들
@@ -61,6 +61,7 @@ app.include_router(trades.router, prefix="/api/v1/trades", tags=["trades"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(status.router, prefix="/api/v1/status", tags=["status"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
+app.include_router(market.router, prefix="/api/v1/market", tags=["market"])
 
 @app.get("/")
 async def root():

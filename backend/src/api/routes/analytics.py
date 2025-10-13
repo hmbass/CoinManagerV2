@@ -33,13 +33,19 @@ async def get_performance_summary(
         
         trades = query.all()
         
+        # 오늘의 거래
+        today = datetime.now().date()
+        today_trades = [t for t in trades if t.created_at.date() == today]
+        today_profit = sum(t.profit_loss for t in today_trades if t.profit_loss)
+        
         if not trades:
             return {
                 "period_days": days,
-                "total_trades": 0,
-                "total_profit": 0,
-                "total_profit_rate": 0,
-                "win_rate": 0,
+                "totalTrades": 0,
+                "totalProfit": 0,
+                "profitRate": 0,
+                "winRate": 0,
+                "dailyProfit": 0,
                 "profit_factor": 0,
                 "max_drawdown": 0,
                 "sharpe_ratio": 0,
@@ -96,12 +102,13 @@ async def get_performance_summary(
         
         result = {
             "period_days": days,
-            "total_trades": total_trades,
+            "totalTrades": total_trades,
+            "totalProfit": total_profit,
+            "profitRate": total_profit_rate,
+            "winRate": win_rate,
+            "dailyProfit": today_profit,
             "winning_trades": len(winning_trades),
             "losing_trades": len(losing_trades),
-            "total_profit": total_profit,
-            "total_profit_rate": total_profit_rate,
-            "win_rate": win_rate,
             "profit_factor": profit_factor,
             "max_drawdown": max_drawdown,
             "sharpe_ratio": sharpe_ratio,

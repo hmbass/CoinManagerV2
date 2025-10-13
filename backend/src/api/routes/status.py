@@ -212,6 +212,27 @@ async def get_recent_logs(
         logger.error(f"로그 조회 실패: {e}")
         raise HTTPException(status_code=500, detail="로그 조회에 실패했습니다")
 
+@router.get("/system", response_model=dict)
+async def get_system_status():
+    """시스템 상태 조회 (Frontend용)"""
+    try:
+        result = {
+            "trading_engine": settings.TRADING_ENABLED,
+            "upbit_connection": True,  # 실제로는 Upbit API 연결 테스트
+            "notifications": settings.TELEGRAM_ENABLED
+        }
+        
+        logger.debug("시스템 상태 조회 (Frontend용)")
+        return result
+        
+    except Exception as e:
+        logger.error(f"시스템 상태 조회 실패: {e}")
+        return {
+            "trading_engine": False,
+            "upbit_connection": False,
+            "notifications": False
+        }
+
 @router.post("/test-connection", response_model=dict)
 async def test_external_connections():
     """외부 서비스 연결 테스트"""
